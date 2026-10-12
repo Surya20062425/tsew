@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useShortlist } from '../context/ShortlistContext';
 import { UserRole } from '../types';
-import { DEMO_USERS } from '../data/mockData';
 import { 
   ShieldCheck, Lock, Mail, Eye, EyeOff, ArrowRight, 
   Sparkles, CheckCircle2, AlertCircle, Building2, Palette, Shield,
@@ -14,112 +13,103 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
-  const { login, loginWithEmailOnly, isAuthenticated, currentUser, logout, isSupabaseActive } = useAuth();
+  const { login, sendMagicLink, resendConfirmation, isAuthenticated, currentUser, logout, isSupabaseActive } = useAuth();
   const { showToast } = useShortlist();
 
-  // Active portal tab: 'brand' vs 'creator'
-  const [selectedRole, setSelectedRole] = useState<'brand' | 'creator' | 'admin'>('brand');
+  // Active portal tab: which dashboard the user lands on after sign-in
+  const [selectedRole, setSelectedRole] = useState<'brand' | 'creator'>('brand');
 
-  // Auth method: 'email-only' (Supabase primary) vs 'password'
-  const [authMethod, setAuthMethod] = useState<'email-only' | 'password'>('email-only');
+  // Auth method: magic link (Supabase OTP) vs email + password
+  const [authMethod, setAuthMethod] = useState<'magic-link' | 'password'>('password');
 
-  const [email, setEmail] = useState('david.vance@auramotors.com');
-  const [password, setPassword] = useState('••••••••••••');
-  const [otpCode, setOtpCode] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pendingConfirmEmail, setPendingConfirmEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleRoleChange = (role: 'brand' | 'creator' | 'admin') => {
+  const handleRoleChange = (role: 'brand' | 'creator') => {
     setSelectedRole(role);
     setError(null);
-    setOtpSent(false);
-    if (role === 'brand') {
-      setEmail('david.vance@auramotors.com');
-    } else if (role === 'creator') {
-      setEmail('alex.morgan@runwaycinema.com');
-    } else {
-      setEmail('sarah.jenkins@creatorbridge.ai');
-    }
   };
 
-  // 1. Supabase Email-Only Authentication for existing accounts
-  const handleEmailOnlyLogin = async (e: React.FormEvent) => {
+  const landingPath = (role: UserRole) => (role === 'creator' ? 'creator-profile' : 'home');
+
+  // 1. Email + Password sign-in against Supabase Auth
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
+    // Reset per attempt, otherwise a stale "resend link" button leaks into
+    // unrelated errors on the next submit.
+    setPendingConfirmEmail(null);
 
     const cleanEmail = email.trim();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
+    if (!cleanEmail.includes('@')) {
+      setError('Please provide a valid email address.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+
+    setLoading(true);
+    const res = await login(cleanEmail, password);
+    setLoading(false);
+
+    if (res.success) {
+      setPendingConfirmEmail(null);
+      showToast('Signed in.', 'success');
+      navigate(landingPath(selectedRole));
+      return;
+    }
+
+    if (res.needsEmailConfirm) {
+      setPendingConfirmEmail(cleanEmail);
+    }
+    setError(res.error || 'Sign-in failed.');
+  };
+
+  // 2. Magic-link sign-in for an existing account
+  const handleMagicLinkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    // Same reset as the password path — a stale confirm-pending flag would
+    // otherwise show the "resend link" button next to an unrelated error.
+    setPendingConfirmEmail(null);
+
+    const cleanEmail = email.trim();
+    if (!cleanEmail.includes('@')) {
       setError('Please provide a valid email address.');
       return;
     }
 
     setLoading(true);
-    try {
-      const res = await loginWithEmailOnly(cleanEmail);
-      setLoading(false);
+    const res = await sendMagicLink(cleanEmail);
+    setLoading(false);
 
-      if (res.success) {
-        showToast(`Authenticated via Supabase Auth as ${cleanEmail}!`, 'success');
-        if (selectedRole === 'brand' || cleanEmail.includes('brand') || cleanEmail.includes('david')) {
-          navigate('home');
-        } else if (selectedRole === 'creator' || cleanEmail.includes('creator') || cleanEmail.includes('alex')) {
-          navigate('creator-profile');
-        } else {
-          navigate('home');
-        }
-      } else {
-        setError(res.error || 'Authentication failed. Please verify your email or register a new account.');
-      }
-    } catch (err: any) {
-      setLoading(false);
-      setError(err?.message || 'Login failed. Please try again.');
-    }
-  };
-
-  // 2. Standard Email + Password Login
-  const handlePasswordSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!email) {
-      setError('Please provide a valid work email address.');
+    if (res.success) {
+      setNotice(`Sign-in link sent to ${cleanEmail}. Open it in this browser to finish signing in.`);
       return;
     }
-
-    setLoading(true);
-    setTimeout(() => {
-      const success = login(email, password, selectedRole);
-      setLoading(false);
-      if (success) {
-        showToast(`Welcome back to CreatorBridge!`, 'success');
-        if (selectedRole === 'brand') {
-          navigate('home');
-        } else if (selectedRole === 'creator') {
-          navigate('creator-profile');
-        } else {
-          navigate('home');
-        }
-      } else {
-        setError('Invalid credentials. Please verify your email or use email-only auth.');
-      }
-    }, 400);
+    setError(res.error || 'Could not send the sign-in link.');
   };
 
-  // 1-Click Fast Persona Login
-  const handleQuickLogin = (roleKey: UserRole) => {
-    const demo = DEMO_USERS[roleKey];
-    if (demo) {
-      setEmail(demo.email);
-      setSelectedRole(roleKey as any);
-      login(demo.email, 'password123', roleKey);
-      showToast(`Signed in via Supabase as ${demo.name} (${demo.title})`, 'success');
-      if (roleKey === 'creator') {
-        navigate('creator-profile');
-      } else {
-        navigate('home');
-      }
+  const handleResendConfirmation = async () => {
+    if (!pendingConfirmEmail) return;
+    setError(null);
+    setLoading(true);
+    const res = await resendConfirmation(pendingConfirmEmail);
+    setLoading(false);
+    if (res.success) {
+      setNotice(`Confirmation email re-sent to ${pendingConfirmEmail}.`);
+      setPendingConfirmEmail(null);
+    } else {
+      setError(res.error || 'Could not resend the confirmation email.');
     }
   };
 
@@ -140,9 +130,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
           </p>
 
           {/* Supabase status badge */}
-          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Supabase Email Authentication Active</span>
+          <div
+            className={`mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold ${
+              isSupabaseActive
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${isSupabaseActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+            <span>
+              {isSupabaseActive
+                ? 'Supabase Auth Connected'
+                : 'Supabase Auth not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY'}
+            </span>
           </div>
         </div>
 
@@ -234,24 +234,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
             </div>
           </div>
 
-          {/* AUTH METHOD SELECTOR (Email-Only vs Password) */}
+          {/* AUTH METHOD SELECTOR (Magic Link vs Password) */}
           <div className="mb-5 flex items-center justify-between p-2 rounded-xl bg-slate-100/80 border border-slate-200 text-xs">
             <span className="font-semibold text-slate-700 pl-2">Authentication Method:</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setAuthMethod('email-only')}
-                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                  authMethod === 'email-only'
-                    ? 'bg-white text-[#175CB5] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                ✉ Email-Only Auth (Supabase)
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthMethod('password')}
+                onClick={() => { setAuthMethod('password'); setError(null); setNotice(null); }}
                 className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                   authMethod === 'password'
                     ? 'bg-white text-[#175CB5] shadow-sm'
@@ -260,42 +249,51 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
               >
                 🔒 Email + Password
               </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMethod('magic-link'); setError(null); setNotice(null); }}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                  authMethod === 'magic-link'
+                    ? 'bg-white text-[#175CB5] shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                ✉ Email Sign-In Link
+              </button>
             </div>
-          </div>
-
-          {/* 1-CLICK DEMO SHORTCUT BUTTON */}
-          <div className="mb-5 p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span className="font-semibold text-slate-700">
-                {selectedRole === 'brand' ? 'Fast Demo Client:' : 'Fast Demo Creator:'}
-              </span>
-              <span className="text-slate-500">
-                {selectedRole === 'brand' ? 'David Vance (Aura Motors)' : 'Alex Morgan (Runway Cinema)'}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleQuickLogin(selectedRole)}
-              className="px-3 py-1 text-xs font-bold rounded-lg bg-[#000E23] hover:bg-[#14243A] text-white transition-colors cursor-pointer"
-            >
-              One-Click Sign In
-            </button>
           </div>
 
           {/* ERROR ALERT */}
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
+              <span className="flex-1">{error}</span>
+              {pendingConfirmEmail && (
+                <button
+                  type="button"
+                  onClick={handleResendConfirmation}
+                  disabled={loading}
+                  className="shrink-0 px-2.5 py-1 rounded-md bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-60 cursor-pointer"
+                >
+                  Resend link
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* NEUTRAL NOTICE (link sent, confirmation re-sent) */}
+          {notice && (
+            <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-xs flex items-center gap-2">
+              <Send className="w-4 h-4 shrink-0" />
+              <span>{notice}</span>
             </div>
           )}
 
           {/* ============================================================== */}
           {/* METHOD 1: EMAIL-ONLY AUTH (PRIMARY SUPABASE FLOW)              */}
           {/* ============================================================== */}
-          {authMethod === 'email-only' ? (
-            <form className="space-y-4" onSubmit={handleEmailOnlyLogin}>
+          {authMethod === 'magic-link' ? (
+            <form className="space-y-4" onSubmit={handleMagicLinkSubmit}>
               <div>
                 <label htmlFor="email" className="block text-xs font-semibold text-slate-700 mb-1">
                   {selectedRole === 'brand' ? 'Brand Corporate Email' : 'Creator Studio Email'}
@@ -308,6 +306,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
                     id="email"
                     name="email"
                     type="email"
+                    autoComplete="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -316,11 +315,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Already registered? Simply provide your email to authenticate directly through Supabase Auth.
+                  We email you a one-time sign-in link. No password needed.
                 </p>
               </div>
 
-              {/* Submit Email Button */}
               <button
                 type="submit"
                 disabled={loading}
@@ -330,7 +328,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
                     : 'bg-[#6D28D9] hover:bg-[#5b21b6]'
                 }`}
               >
-                <span>{loading ? 'Authenticating via Supabase...' : `Sign In with Supabase Email Auth`}</span>
+                <span>{loading ? 'Sending link…' : 'Email Me A Sign-In Link'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
@@ -351,6 +349,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
                     id="email-pw"
                     name="email"
                     type="email"
+                    autoComplete="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -367,10 +366,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
                   </label>
                   <button
                     type="button"
-                    onClick={() => setAuthMethod('email-only')}
+                    onClick={() => { setAuthMethod('magic-link'); setError(null); }}
                     className="text-xs text-[#175CB5] hover:underline cursor-pointer"
                   >
-                    Switch to Email-Only Auth
+                    Use a sign-in link instead
                   </button>
                 </div>
                 <div className="relative rounded-xl shadow-sm">
@@ -381,6 +380,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
                     id="password"
                     name="password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}

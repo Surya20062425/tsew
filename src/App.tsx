@@ -35,6 +35,16 @@ function AppContent() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '').trim();
+
+      // Supabase can land auth tokens in the hash fragment (implicit flow, or a
+      // confirmation link with redirect_to). supabase-js consumes them; don't
+      // mistake the token for a route.
+      if (hash.includes('access_token=') || hash.includes('error_description=')) {
+        window.history.replaceState(null, '', window.location.pathname);
+        setCurrentPath('home');
+        return;
+      }
+
       if (!hash) {
         setCurrentPath('home');
         return;

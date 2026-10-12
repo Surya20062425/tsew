@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useShortlist } from '../context/ShortlistContext';
-import { UserRole } from '../types';
-import { Bookmark, Plus, Menu, X, Shield, Sparkles, LogOut, Check, ArrowRight } from 'lucide-react';
+import { Bookmark, Plus, Menu, X, Sparkles, LogOut, ArrowRight } from 'lucide-react';
 import { Avatar } from './Avatar';
 
 interface NavbarProps {
@@ -11,10 +10,9 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentPath, navigate }) => {
-  const { currentUser, isAuthenticated, role, logout, switchRole } = useAuth();
+  const { currentUser, isAuthenticated, role, logout } = useAuth();
   const { count, setIsShortlistOpen } = useShortlist();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   const navLinks = role === 'creator' ? [
@@ -31,30 +29,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, navigate }) => {
     { id: 'how-it-works', label: 'How Escrow Works' },
     { id: 'for-brands', label: 'For Brands' },
   ];
-
-  const handleRoleSelect = (newRole: UserRole) => {
-    switchRole(newRole);
-    setRoleDropdownOpen(false);
-  };
-
-  const getRoleBadgeStyle = (userRole: UserRole) => {
-    switch (userRole) {
-      case 'brand':
-        return 'bg-[#14243A] text-white border-slate-700';
-      case 'creator':
-        return 'bg-[#E9DDFF] text-[#23005C] border-[#D0BCFF]';
-      case 'admin':
-        return 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]';
-    }
-  };
-
-  const getRoleLabel = (userRole: UserRole) => {
-    switch (userRole) {
-      case 'brand': return 'Enterprise Brand';
-      case 'creator': return 'AI Creator';
-      case 'admin': return 'System Admin';
-    }
-  };
 
   return (
     <>
@@ -115,128 +89,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, navigate }) => {
               )}
             </button>
 
-            {/* Role Switcher Pill */}
-            {isAuthenticated && (
-              <div className="relative hidden md:block">
-                <button
-                  onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer shadow-sm ${getRoleBadgeStyle(role)}`}
-                  title="Switch Role Preview"
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span>{getRoleLabel(role)}</span>
-                  <span className="text-[10px] opacity-70">▾</span>
-                </button>
-
-                {roleDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-scale-in">
-                    <div className="px-3 py-1.5 border-b border-slate-100 mb-1">
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                        Role-Based Access Control
-                      </p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Switch persona to test permissions:
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => handleRoleSelect('brand')}
-                      className={`w-full px-3 py-2 text-left flex items-center justify-between text-xs hover:bg-slate-50 transition-colors ${role === 'brand' ? 'font-bold text-[#175CB5]' : 'text-slate-700'}`}
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-semibold">Brand Client (Demo)</span>
-                        <span className="text-[11px] text-slate-400">Post briefs & sample approvals</span>
-                      </div>
-                      {role === 'brand' && <Check className="w-4 h-4 text-[#175CB5]" />}
-                    </button>
-
-                    <button
-                      onClick={() => handleRoleSelect('creator')}
-                      className={`w-full px-3 py-2 text-left flex items-center justify-between text-xs hover:bg-slate-50 transition-colors ${role === 'creator' ? 'font-bold text-[#175CB5]' : 'text-slate-700'}`}
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-semibold">AI Creator (Demo)</span>
-                        <span className="text-[11px] text-slate-400">Sample deliverables & rates</span>
-                      </div>
-                      {role === 'creator' && <Check className="w-4 h-4 text-[#175CB5]" />}
-                    </button>
-
-                    <button
-                      onClick={() => handleRoleSelect('admin')}
-                      className={`w-full px-3 py-2 text-left flex items-center justify-between text-xs hover:bg-slate-50 transition-colors ${role === 'admin' ? 'font-bold text-[#175CB5]' : 'text-slate-700'}`}
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-semibold">Platform Reviewer (Demo)</span>
-                        <span className="text-[11px] text-slate-400">Sample workflow reviews</span>
-                      </div>
-                      {role === 'admin' && <Check className="w-4 h-4 text-[#175CB5]" />}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Log in / Register or User Avatar */}
-            {isAuthenticated ? (
-              <div className="relative">
-                <button
-                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                  className="w-9 h-9 rounded-full ring-2 ring-slate-200 overflow-hidden bg-slate-900 flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
-                  title={currentUser?.name}
-                >
-                  <Avatar
-                    src={currentUser?.avatar}
-                    name={currentUser?.name || 'User'}
-                    alt={currentUser?.name || 'User profile'}
-                    sizeClass="w-9 h-9"
-                  />
-                </button>
-
-                {profileDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-scale-in">
-                    <div className="px-3 py-2 border-b border-slate-100">
-                      <p className="text-sm font-bold text-slate-900 truncate">{currentUser?.name}</p>
-                      <p className="text-xs text-slate-500 truncate">{currentUser?.email}</p>
-                      <span className="inline-block mt-1 text-[10px] font-semibold text-[#175CB5] bg-[#D7E2FF] px-2 py-0.5 rounded-full">
-                        {currentUser?.title}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => { setProfileDropdownOpen(false); navigate('workspace'); }}
-                      className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between"
-                    >
-                      <span>Active Workspace</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-                    </button>
-
-                    <button
-                      onClick={() => { setProfileDropdownOpen(false); logout(); }}
-                      className="w-full px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-slate-100 mt-1"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Sign Out</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => navigate('login')}
-                  className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                >
-                  Log In
-                </button>
-                <button
-                  onClick={() => navigate('register')}
-                  className="hidden sm:inline-block px-3 py-1.5 text-sm font-medium text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                >
-                  Register
-                </button>
-              </div>
-            )}
-
             {/* Role-Specific Action CTA */}
             {role === 'creator' ? (
               <button
@@ -293,35 +145,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, navigate }) => {
                 </button>
               ))}
             </div>
-
-            {/* Role switch in mobile */}
-            {isAuthenticated && (
-              <div className="border-t border-slate-100 pt-3 mb-4">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2 block mb-2">
-                  Active Role: {getRoleLabel(role)}
-                </span>
-                <div className="grid grid-cols-3 gap-1.5 px-1">
-                  <button
-                    onClick={() => handleRoleSelect('brand')}
-                    className={`py-1.5 text-xs font-semibold rounded-md border text-center ${role === 'brand' ? 'bg-[#14243A] text-white border-transparent' : 'bg-slate-50 text-slate-700'}`}
-                  >
-                    Brand
-                  </button>
-                  <button
-                    onClick={() => handleRoleSelect('creator')}
-                    className={`py-1.5 text-xs font-semibold rounded-md border text-center ${role === 'creator' ? 'bg-[#2C0070] text-white border-transparent' : 'bg-slate-50 text-slate-700'}`}
-                  >
-                    Creator
-                  </button>
-                  <button
-                    onClick={() => handleRoleSelect('admin')}
-                    className={`py-1.5 text-xs font-semibold rounded-md border text-center ${role === 'admin' ? 'bg-[#065F46] text-white border-transparent' : 'bg-slate-50 text-slate-700'}`}
-                  >
-                    Admin
-                  </button>
-                </div>
-              </div>
-            )}
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
               {isAuthenticated ? (

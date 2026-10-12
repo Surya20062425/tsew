@@ -171,7 +171,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
   };
 
   // Handle Brand Account Registration
-  const handleBrandSubmit = (e: React.FormEvent) => {
+  const handleBrandSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -187,8 +187,8 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
       setError('Please provide a valid corporate work email.');
       return;
     }
-    if (brandPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (brandPassword.length < 8) {
+      setError('Password must be at least 8 characters.');
       return;
     }
     if (!brandAgreeTerms) {
@@ -197,37 +197,38 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
     }
 
     setSubmitting(true);
-    setTimeout(() => {
-      const brandPayload: RegisterPayload = {
-        name: brandContactName,
-        email: brandEmail,
-        password: brandPassword,
-        role: 'brand',
-        company: brandName,
-        title: brandContactTitle,
-        brandDetails: {
-          industry: brandIndustry,
-          companySize: brandCompanySize,
-          website: brandWebsite,
-          budgetRange: brandBudgetRange,
-          billingCountry: brandBillingCountry,
-        },
-      };
+    const res = await register({
+      name: brandContactName,
+      email: brandEmail,
+      password: brandPassword,
+      role: 'brand',
+      company: brandName,
+      title: brandContactTitle,
+      brandDetails: {
+        industry: brandIndustry,
+        companySize: brandCompanySize,
+        website: brandWebsite,
+        budgetRange: brandBudgetRange,
+        billingCountry: brandBillingCountry,
+      },
+    });
+    setSubmitting(false);
 
-      const success = register(brandPayload);
-      setSubmitting(false);
-
-      if (success) {
-        showToast(`Welcome ${brandName}! Your brand account is activated.`, 'success');
-        navigate('brief');
-      } else {
-        setError('Brand registration could not be completed. Please try again.');
-      }
-    }, 400);
+    if (!res.success) {
+      setError(res.error || 'Brand registration could not be completed. Please try again.');
+      return;
+    }
+    if (res.needsEmailConfirm) {
+      showToast(`Almost there — confirm ${brandEmail} to activate your brand account.`, 'info');
+      navigate('login');
+      return;
+    }
+    showToast(`Welcome ${brandName}! Your brand account is activated.`, 'success');
+    navigate('brief');
   };
 
   // Handle Creator Account Registration (Requires Verification!)
-  const handleCreatorSubmit = (e: React.FormEvent) => {
+  const handleCreatorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -239,8 +240,8 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
       setError('Please provide a valid creator email.');
       return;
     }
-    if (creatorPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (creatorPassword.length < 8) {
+      setError('Password must be at least 8 characters.');
       return;
     }
     if (!creatorAgreeTerms) {
@@ -249,27 +250,28 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
     }
 
     setSubmitting(true);
-    setTimeout(() => {
-      const creatorPayload: RegisterPayload = {
-        name: creatorName,
-        email: creatorEmail,
-        password: creatorPassword,
-        role: 'creator',
-        company: creatorHandle || `${creatorName} Visuals`,
-        title: `${creatorSpecialization} Specialist`,
-        creatorVerification: verificationResult,
-      };
+    const res = await register({
+      name: creatorName,
+      email: creatorEmail,
+      password: creatorPassword,
+      role: 'creator',
+      company: creatorHandle || `${creatorName} Visuals`,
+      title: `${creatorSpecialization} Specialist`,
+      creatorVerification: verificationResult,
+    });
+    setSubmitting(false);
 
-      const success = register(creatorPayload);
-      setSubmitting(false);
-
-      if (success) {
-        showToast(`Congratulations ${creatorName}! Your Verified Creator account is active.`, 'success');
-        navigate('creator-profile');
-      } else {
-        setError('Creator registration could not be completed. Please try again.');
-      }
-    }, 400);
+    if (!res.success) {
+      setError(res.error || 'Creator registration could not be completed. Please try again.');
+      return;
+    }
+    if (res.needsEmailConfirm) {
+      showToast(`Almost there — confirm ${creatorEmail} to activate your verified creator account.`, 'info');
+      navigate('login');
+      return;
+    }
+    showToast(`Congratulations ${creatorName}! Your Verified Creator account is active.`, 'success');
+    navigate('creator-profile');
   };
 
   return (
