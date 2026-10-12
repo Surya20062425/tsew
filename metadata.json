@@ -1,0 +1,8 @@
+{
+  "name": "CreatorBridge.AI - AI Creator Marketplace",
+  "description": "Discover and collaborate with curated generative AI filmmakers, 3D artists, and animators. Prototype marketplace with milestone-based collaboration and creator-provided commercial workflows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
